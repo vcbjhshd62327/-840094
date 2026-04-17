@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المصحف الذهبي</title>
+
+<!-- PageFlip -->
+<script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.min.js"></script>
+
+<style>
+body {
+    margin:0;
+    font-family: "Tahoma";
+    direction: rtl;
+    background:#f5f0e6;
+}
+
+/* دارك مود */
+body.dark { background:#111; color:white; }
+
+/* الهيدر */
+.header {
+    display:flex;
+    justify-content:space-between;
+    padding:10px;
+    background:#bfa14a;
+    color:white;
+    font-weight:bold;
+}
+
+/* القائمة */
+.menu {
+    position:fixed;
+    top:0;
+    left:-250px;
+    width:250px;
+    height:100%;
+    background:#222;
+    color:white;
+    overflow:auto;
+    transition:0.3s;
+    z-index:999;
+}
+.menu.open { left:0; }
+.menu div { padding:10px; border-bottom:1px solid #444; cursor:pointer; }
+
+/* الكتاب */
+#book {
+    width:100%;
+    height:85vh;
+}
+
+/* الصفحة */
+.page {
+    padding:20px;
+}
+
+.inner {
+    border:3px solid gold;
+    border-radius:20px;
+    height:100%;
+    padding:15px;
+    position:relative;
+}
+
+/* رقم الصفحة */
+.page-num {
+    position:absolute;
+    bottom:10px;
+    left:50%;
+    transform:translateX(-50%);
+    background:gold;
+    color:black;
+    padding:5px 12px;
+    border-radius:50px;
+}
+
+/* البسملة */
+.bismillah {
+    text-align:center;
+    color:gold;
+}
+
+/* الآيات */
+.ayah {
+    font-size:20px;
+    line-height:2;
+    margin:8px 0;
+}
+
+/* الأسهم */
+.arrow {
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    background:gold;
+    padding:10px;
+    border-radius:50%;
+    cursor:pointer;
+}
+.left { left:10px; }
+.right { right:10px; }
+
+</style>
+</head>
+
+<body>
+
+<div class="menu" id="menu"></div>
+
+<div class="header">
+<div id="surah">سورة</div>
+<div onclick="toggleMenu()">☰</div>
+<div id="juz">جزء</div>
+</div>
+
+<div class="arrow right" onclick="prev()">➡</div>
+<div class="arrow left" onclick="next()">⬅</div>
+
+<div id="book"></div>
+
+<script>
+
+// API
+const API = "https://api.alquran.cloud/v1/quran/ar";
+
+// عناصر
+const bookEl = document.getElementById("book");
+const menu = document.getElementById("menu");
+
+let pages = [];
+let pageFlip;
+
+// تحميل
+fetch(API)
+.then(res=>res.json())
+.then(data=>{
+
+    const surahs = data.data.surahs;
+
+    // قائمة السور
+    surahs.forEach((s,i)=>{
+        let d=document.createElement("div");
+        d.innerText=s.name;
+        d.onclick=()=>goTo(i);
+        menu.appendChild(d);
+    });
+
+    // تقسيم (كل 10 آيات)
+    surahs.forEach(s=>{
+        for(let i=0;i<s.ayahs.length;i+=10){
+            pages.push({
+                surah:s.name,
+                juz:s.ayahs[i].juz,
+                ayahs:s.ayahs.slice(i,i+10)
+            });
+        }
+    });
+
+    render();
+});
+
+// رسم الصفحات
+function render(){
+
+    pages.forEach((p,i)=>{
+
+        let div=document.createElement("div");
+        div.className="page";
+
+        div.innerHTML=`
+        <div class="inner">
+        <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
+        ${p.ayahs.map(a=>`<div class="ayah">${a.text}</div>`).join("")}
+        <div class="page-num">${i+1}</div>
+        </div>
+        `;
+
+        bookEl.appendChild(div);
+    });
+
+    // PageFlip
+    pageFlip = new St.PageFlip(bookEl,{
+        width:300,
+        height:500,
+        size:"stretch",
+        maxShadowOpacity:0.5
+    });
+
+    pageFlip.loadFromHTML(document.querySelectorAll(".page"));
+
+    // حفظ الصفحة
+    pageFlip.on("flip", e=>{
+        localStorage.setItem("page", e.data);
+    });
+
+}
+
+// التنقل
+function next(){ pageFlip.flipNext(); }
+function prev(){ pageFlip.flipPrev(); }
+
+// القائمة
+function toggleMenu(){
+    menu.classList.toggle("open");
+}
+
+// الذهاب لسورة
+function goTo(i){
+    pageFlip.flip(i);
+    menu.classList.remove("open");
+}
+
+// دارك مود (دبل كليك)
+document.body.ondblclick=()=>{
+    document.body.classList.toggle("dark");
+};
+
+// بحث
+function search(text){
+    pages.forEach((p,i)=>{
+        if(p.ayahs.some(a=>a.text.includes(text))){
+            pageFlip.flip(i);
+        }
+    });
+}
+
+// Bookmark
+function saveBookmark(){
+    localStorage.setItem("bookmark", pageFlip.getCurrentPageIndex());
+}
+
+function loadBookmark(){
+    let b=localStorage.getItem("bookmark");
+    if(b) pageFlip.flip(parseInt(b));
+}
+
+</script>
+
+</body>
+</html>
